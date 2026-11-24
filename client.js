@@ -9,7 +9,7 @@ function istBild(anhang) {
 }
 
 async function bilderAlsZipLaden(t) {
-  const karte = await t.card('name', 'attachments');
+  const karte = await t.card('id', 'name', 'attachments');
   const bilder = (karte.attachments || []).filter(istBild);
 
   if (bilder.length === 0) {
@@ -22,7 +22,7 @@ async function bilderAlsZipLaden(t) {
 
   t.alert({
     message: `Lade ${bilder.length} Bilder herunter und erstelle ZIP...`,
-    duration: 6,
+    duration: 8,
     display: 'info'
   });
 
@@ -32,8 +32,9 @@ async function bilderAlsZipLaden(t) {
   for (let i = 0; i < bilder.length; i++) {
     const bild = bilder[i];
     try {
+      // Versuche direkten Download
       const response = await fetch(bild.url);
-      if (!response.ok) throw new Error('Download fehlgeschlagen');
+      if (!response.ok) throw new Error('HTTP ' + response.status);
       
       const blob = await response.blob();
       const saubererName = `${String(i + 1).padStart(2, '0')}_${bild.name.replace(/[\\/*?:"<>|]/g, '_')}`;
@@ -46,8 +47,8 @@ async function bilderAlsZipLaden(t) {
 
   if (erfolgreich === 0) {
     return t.alert({
-      message: 'Fehler: Trello hat den direkten Zugriff blockiert (CORS/Auth).',
-      duration: 6,
+      message: 'Zugriff blockiert! Bitte Board kurz auf öffentlich stellen oder API-Token nutzen.',
+      duration: 7,
       display: 'error'
     });
   }
@@ -57,7 +58,7 @@ async function bilderAlsZipLaden(t) {
   
   const link = document.createElement('a');
   link.href = downloadUrl;
-  const kartenNameSauber = karte.name.replace(/[\\/*?:"<>|]/g, '_').substring(0, 40);
+  const kartenNameSauber = (karte.name || 'Trello_Karte').replace(/[\\/*?:"<>|]/g, '_').substring(0, 40);
   link.download = `${kartenNameSauber}_Bilder.zip`;
   document.body.appendChild(link);
   link.click();
@@ -71,6 +72,7 @@ async function bilderAlsZipLaden(t) {
   });
 }
 
+// Registriert den Button im Power-Up-Menü
 TrelloPowerUp.initialize({
   'card-buttons': function(t) {
     return [{
