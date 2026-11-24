@@ -1,4 +1,8 @@
 {
   "name": "Mein Bilder Downloader",
-  "details": "Lädt alle Bilder einer Karte als ZIP-Datei herunter."
+  "details": "Lädt alle Bilder einer Karte als ZIP-Datei herunter.",
+  "capabilities": [
+    "card-buttons",
+    "card-back-section"
+  ]
 }
