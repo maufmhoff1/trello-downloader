@@ -3,7 +3,6 @@
 <head>
   <meta charset="utf-8">
   <title>Trello Bilder Downloader</title>
- <script src="https://jsdelivr.net"></script>
   <style>
     body { font-family: sans-serif; max-width: 520px; margin: 40px auto; padding: 20px; background: #f4f5f7; }
     .box { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
@@ -35,6 +34,42 @@
   </div>
 
   <script>
+        class MiniZip {
+      constructor() { this.files = []; this.folderName = ""; }
+      folder(name) { this.folderName = name + "/"; return this; }
+      file(name, blob) { this.files.push({ name: this.folderName + name, blob }); }
+      async generateAsync() {
+        const enc = new TextEncoder(), parts = [], central = [];
+        let offset = 0;
+        for (const f of this.files) {
+          const data = new Uint8Array(await f.blob.arrayBuffer());
+          const nameBytes = enc.encode(f.name);
+          const header = new Uint8Array(30 + nameBytes.length);
+          const v = new DataView(header.buffer);
+          v.setUint32(0, 0x04034b50, true); v.setUint16(4, 20, true);
+          v.setUint32(18, data.length, true); v.setUint32(22, data.length, true);
+          v.setUint16(26, nameBytes.length, true);
+          header.set(nameBytes, 30);
+          parts.push(header, data);
+          const cd = new Uint8Array(46 + nameBytes.length);
+          const cv = new DataView(cd.buffer);
+          cv.setUint32(0, 0x02014b50, true); cv.setUint16(4, 20, true); cv.setUint16(6, 20, true);
+          cv.setUint32(20, data.length, true); cv.setUint32(24, data.length, true);
+          cv.setUint16(28, nameBytes.length, true); cv.setUint32(42, offset, true);
+          cd.set(nameBytes, 46);
+          central.push(cd);
+          offset += header.length + data.length;
+        }
+        const cdSize = central.reduce((s, a) => s + a.length, 0);
+        const eocd = new Uint8Array(22);
+        const ev = new DataView(eocd.buffer);
+        ev.setUint32(0, 0x06054b50, true);
+        ev.setUint16(8, this.files.length, true); ev.setUint16(10, this.files.length, true);
+        ev.setUint32(12, cdSize, true); ev.setUint32(16, offset, true);
+        return new Blob([...parts, ...central, eocd], { type: "application/zip" });
+      }
+    }
+
     function loadImageAsBlob(url) {
       return new Promise(function(resolve, reject) {
         var img = new Image();
@@ -104,7 +139,7 @@
           }
 
           var folderName = (targetCard.name || "Trello_Bilder").replace(/[\\/*?:"<>|]/g, '_').substring(0, 50);
-          var zip = new JSZip();
+          var zip = new MiniZip();
           var folder = zip.folder(folderName);
           var geladen = 0;
 
