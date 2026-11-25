@@ -35,8 +35,8 @@
 
   <script>
     window.onload = function() {
-      const savedKey = localStorage.getItem('trello_api_key');
-      const savedTok = localStorage.getItem('trello_api_token');
+      var savedKey = localStorage.getItem('trello_api_key');
+      var savedTok = localStorage.getItem('trello_api_token');
       if (savedKey) document.getElementById('apiKey').value = savedKey;
       if (savedTok) document.getElementById('apiToken').value = savedTok;
       if (savedKey && savedTok) {
@@ -51,11 +51,11 @@
 
     async function downloadImages() {
       saveKeys();
-      const API_KEY = document.getElementById('apiKey').value.trim();
-      const TOKEN = document.getElementById('apiToken').value.trim();
-      const status = document.getElementById('status');
-      const urlInput = document.getElementById('cardUrl').value.trim();
-      const match = urlInput.match(/\/c\/([a-zA-Z0-9]+)/);
+      var API_KEY = document.getElementById('apiKey').value.trim();
+      var TOKEN = document.getElementById('apiToken').value.trim();
+      var status = document.getElementById('status');
+      var urlInput = document.getElementById('cardUrl').value.trim();
+      var match = urlInput.match(/\/c\/([a-zA-Z0-9]+)/);
 
       if (!API_KEY || !TOKEN) {
         status.style.color = "red";
@@ -70,17 +70,19 @@
         return;
       }
 
-      const cardId = match.at(1);
-      const apiUrl = `https://trello.com{cardId}/attachments?key=${API_KEY}&token=${TOKEN}`;
+      var cardId = match.at(1);
+      var apiUrl = "https://trello.com" + cardId + "/attachments?key=" + API_KEY + "&token=" + TOKEN;
       status.style.color = "#0079bf";
-      status.innerText = `Prüfe Karte (${cardId})...`;
+      status.innerText = "Prüfe Karte (" + cardId + ")...";
 
       try {
-        const res = await fetch(apiUrl);
-        if (!res.ok) throw new Error(`Trello-Status ${res.status} – bitte Key & Token prüfen!`);
+        var res = await fetch(apiUrl);
+        if (!res.ok) throw new Error("Trello-Status " + res.status + " – bitte Key & Token prüfen!");
         
-        const attachments = await res.json();
-        const images = attachments.filter(a => /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(a.name) || (a.mimeType && a.mimeType.startsWith('image/')));
+        var attachments = await res.json();
+        var images = attachments.filter(function(a) {
+          return /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(a.name) || (a.mimeType && a.mimeType.indexOf('image/') === 0);
+        });
 
         if (images.length === 0) {
           status.style.color = "orange";
@@ -88,12 +90,12 @@
           return;
         }
 
-        for (let i = 0; i < images.length; i++) {
-          status.innerText = `Starte Download ${i + 1} von ${images.length}...`;
-          const img = images.at(i);
-          const dlUrl = `https://trello.com{cardId}/attachments/${img.id}/download/${encodeURIComponent(img.name)}?key=${API_KEY}&token=${TOKEN}`;
+        for (var i = 0; i < images.length; i++) {
+          status.innerText = "Starte Download " + (i + 1) + " von " + images.length + "...";
+          var img = images.at(i);
+          var dlUrl = "https://trello.com" + cardId + "/attachments/" + img.id + "/download/" + encodeURIComponent(img.name) + "?key=" + API_KEY + "&token=" + TOKEN;
           
-          const link = document.createElement("a");
+          var link = document.createElement("a");
           link.href = dlUrl;
           link.download = img.name;
           link.target = "_blank";
@@ -101,14 +103,14 @@
           link.click();
           document.body.removeChild(link);
 
-          await new Promise(r => setTimeout(r, 700));
+          await new Promise(function(r) { setTimeout(r, 700); });
         }
 
         status.style.color = "green";
-        status.innerText = `Fertig! ${images.length} Bilder wurden heruntergeladen.`;
+        status.innerText = "Fertig! " + images.length + " Bilder wurden heruntergeladen.";
       } catch (err) {
         status.style.color = "red";
-        status.innerHTML = `Fehler bei Karte <b>${cardId}</b>: ${err.message}<br><br><a href="${apiUrl}" target="_blank">👉 Klicke hier, um die Trello-Antwort direkt im Browser zu prüfen</a>`;
+        status.innerText = "Fehler bei Karte " + cardId + ": " + err.message;
       }
     }
   </script>
