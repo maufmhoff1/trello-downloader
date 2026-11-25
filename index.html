@@ -3,7 +3,6 @@
 <head>
   <meta charset="utf-8">
   <title>Trello Bilder Downloader</title>
-  <script src="https://cloudflare.com"></script>
   <style>
     body { font-family: sans-serif; max-width: 500px; margin: 50px auto; padding: 20px; background: #f4f5f7; }
     .box { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
@@ -11,7 +10,7 @@
     input { width: 100%; padding: 10px; margin: 5px 0 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
     button { width: 100%; padding: 12px; margin-top: 10px; background: #0079bf; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; }
     button:hover { background: #026aa7; }
-    #status { margin-top: 15px; font-weight: bold; color: #333; }
+    #status { margin-top: 15px; font-weight: bold; color: #333; line-height: 1.4; }
     details { margin-bottom: 15px; background: #f9fafc; padding: 10px; border-radius: 4px; border: 1px solid #e1e4e8; }
     summary { cursor: pointer; font-weight: bold; font-size: 13px; color: #0079bf; }
   </style>
@@ -30,12 +29,11 @@
 
     <label>Link zur Trello-Karte hier einfügen:</label>
     <input type="text" id="cardUrl" placeholder="https://trello.com..." />
-    <button onclick="downloadImages()">Alle Bilder als ZIP laden</button>
+    <button onclick="downloadImages()">Alle Bilder herunterladen</button>
     <div id="status"></div>
   </div>
 
   <script>
-    // Gespeicherte Schlüssel beim Öffnen der Seite automatisch laden
     window.onload = function() {
       const savedKey = localStorage.getItem('trello_api_key');
       const savedTok = localStorage.getItem('trello_api_token');
@@ -89,27 +87,24 @@
           return;
         }
 
-        const zip = new JSZip();
         for (let i = 0; i < images.length; i++) {
-          status.innerText = `Lade Bild ${i + 1} von ${images.length}...`;
+          status.innerText = `Starte Download ${i + 1} von ${images.length}...`;
           const img = images[i];
           const dlUrl = `https://trello.com{cardId}/attachments/${img.id}/download/${encodeURIComponent(img.name)}?key=${API_KEY}&token=${TOKEN}`;
-          const imgRes = await fetch(dlUrl);
-          if (!imgRes.ok) throw new Error("Download von Bild " + (i + 1) + " blockiert.");
-          const blob = await imgRes.blob();
-          const cleanName = `${String(i + 1).padStart(2, '0')}_${img.name.replace(/[\\/*?:"<>|]/g, '_')}`;
-          zip.file(cleanName, blob);
+          
+          const link = document.createElement("a");
+          link.href = dlUrl;
+          link.download = img.name;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          // Kurze Pause, damit der Browser alle Downloads sauber annimmt
+          await new Promise(r => setTimeout(r, 600));
         }
 
-        status.innerText = "Erstelle ZIP-Datei...";
-        const zipBlob = await zip.generateAsync({ type: "blob" });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(zipBlob);
-        link.download = `Trello_Karte_${cardId}_Bilder.zip`;
-        link.click();
-
         status.style.color = "green";
-        status.innerText = `Fertig! ${images.length} Bilder wurden als ZIP heruntergeladen.`;
+        status.innerText = `Fertig! ${images.length} Bilder wurden an deinen Browser übergeben. (Falls nur 1 Bild kam, bitte oben in der Browserleiste "Mehrere Dateien herunterladen" zulassen).`;
       } catch (err) {
         status.style.color = "red";
         status.innerText = "Fehler: " + err.message;
