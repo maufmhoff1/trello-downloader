@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <title>Trello Bilder Downloader</title>
+  <script src="https://cloudflare.com"></script>
   <style>
     body { font-family: sans-serif; max-width: 520px; margin: 40px auto; padding: 20px; background: #f4f5f7; }
     .box { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
@@ -19,23 +20,44 @@
     <h2>Trello Bilder herunterladen</h2>
 
     <div class="hint">
-      <b>So bekommst du die Board-Datei (1x pro Board):</b><br>
-      Öffne dein Trello-Board &rarr; rechts oben <b>&hellip; (Menü)</b> &rarr; <b>Drucken und exportieren</b> &rarr; <b>Als JSON exportieren</b>.
+      <b>1x Board-Datei holen:</b> Trello-Board &rarr; <b>&hellip; (Menü)</b> &rarr; <b>Drucken und exportieren</b> &rarr; <b>Als JSON exportieren</b>.
     </div>
 
-    <label>1. Heruntergeladene Board-JSON-Datei auswählen:</label>
+    <label>1. Exportierte Board-JSON-Datei auswählen:</label>
     <input type="file" id="jsonFile" accept=".json" />
 
-    <label>2. Link der gewünschten Trello-Karte einfügen:</label>
+    <label>2. Link der Trello-Karte einfügen:</label>
     <input type="text" id="cardUrl" placeholder="https://trello.com..." />
 
-    <button onclick="startDownloads()">Alle Bilder dieser Karte herunterladen</button>
+    <button onclick="startZipDownload()">Bilder-Ordner (ZIP) herunterladen</button>
 
     <div id="status"></div>
   </div>
 
   <script>
-    async function startDownloads() {
+    function loadImageAsBlob(url) {
+      return new Promise(function(resolve, reject) {
+        var img = new Image();
+        img.crossOrigin = "Anonymous";
+        img.onload = function() {
+          var canvas = document.createElement("canvas");
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          var ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0);
+          canvas.toBlob(function(blob) {
+            if (blob) resolve(blob);
+            else reject(new Error("Canvas leer"));
+          }, "image/jpeg", 0.95);
+        };
+        img.onerror = function() {
+          reject(new Error("Bild konnte nicht geladen werden"));
+        };
+        img.src = url;
+      });
+    }
+
+    async function startZipDownload() {
       var status = document.getElementById('status');
       var fileInput = document.getElementById('jsonFile');
       var urlInput = document.getElementById('cardUrl').value.trim();
@@ -43,7 +65,7 @@
 
       if (!fileInput.files || fileInput.files.length === 0) {
         status.style.color = "red";
-        status.innerText = "Bitte wähle oben zuerst deine exportierte JSON-Datei aus!";
+        status.innerText = "Bitte wähle zuerst deine JSON-Datei aus!";
         return;
       }
 
@@ -66,7 +88,7 @@
 
           if (!targetCard) {
             status.style.color = "red";
-            status.innerText = "Karte (" + shortLink + ") wurde in dieser JSON-Datei nicht gefunden. Ist es das richtige Board?";
+            status.innerText = "Karte wurde in dieser JSON-Datei nicht gefunden.";
             return;
           }
 
@@ -81,27 +103,46 @@
             return;
           }
 
+          var folderName = (targetCard.name || "Trello_Bilder").replace(/[\\/*?:"<>|]/g, '_').substring(0, 50);
+          var zip = new JSZip();
+          var folder = zip.folder(folderName);
+          var geladen = 0;
+
           for (var i = 0; i < images.length; i++) {
             status.style.color = "#0079bf";
-            status.innerText = "Starte Download " + (i + 1) + " von " + images.length + "...";
+            status.innerText = "Packe Bild " + (i + 1) + " von " + images.length + " in Ordner...";
             var img = images.at(i);
+            var cleanName = String(i + 1).padStart(2, '0') + "_" + img.name.replace(/[\\/*?:"<>|]/g, '_');
 
-            var link = document.createElement("a");
-            link.href = img.url;
-            link.download = img.name;
-            link.target = "_blank";
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-
-            await new Promise(function(r) { setTimeout(r, 700); });
+            try {
+              var blob = await loadImageAsBlob(img.url);
+              folder.file(cleanName, blob);
+              geladen++;
+            } catch (err) {
+              console.warn("Übersprungen:", img.name);
+            }
           }
 
+          if (geladen === 0) {
+            status.style.color = "red";
+            status.innerText = "Trello schützt diese privaten Bilder gegen Browser-Zugriff. Nutze dafür die kleine Windows .bat-Datei.";
+            return;
+          }
+
+          status.innerText = "Erstelle ZIP-Ordner...";
+          var zipBlob = await zip.generateAsync({ type: "blob" });
+          var link = document.createElement("a");
+          link.href = URL.createObjectURL(zipBlob);
+          link.download = folderName + ".zip";
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
           status.style.color = "green";
-          status.innerText = "Fertig! " + images.length + " Bilder aus '" + targetCard.name + "' wurden heruntergeladen.";
+          status.innerText = "Fertig! '" + folderName + ".zip' (mit " + geladen + " Bildern im Ordner) liegt in deinen Downloads.";
         } catch (err) {
           status.style.color = "red";
-          status.innerText = "Fehler beim Lesen der Datei: " + err.message;
+          status.innerText = "Fehler: " + err.message;
         }
       };
 
