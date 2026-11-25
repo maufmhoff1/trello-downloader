@@ -7,102 +7,45 @@
     body { font-family: sans-serif; max-width: 520px; margin: 40px auto; padding: 20px; background: #f4f5f7; }
     .box { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
     label { font-size: 13px; font-weight: bold; color: #444; display: block; margin-top: 12px; }
-    input, textarea { width: 100%; padding: 10px; margin: 5px 0 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-family: inherit; }
-    button { width: 100%; padding: 12px; margin-top: 8px; background: #0079bf; color: white; border: none; border-radius: 4px; font-size: 15px; font-weight: bold; cursor: pointer; }
-    button:hover { background: #026aa7; }
-    .step2 { display: none; margin-top: 18px; padding-top: 15px; border-top: 1px solid #e1e4e8; }
+    textarea { width: 100%; padding: 10px; margin: 5px 0 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-family: inherit; }
+    button { width: 100%; padding: 12px; margin-top: 8px; background: #5aac44; color: white; border: none; border-radius: 4px; font-size: 15px; font-weight: bold; cursor: pointer; }
+    button:hover { background: #49852e; }
     #status { margin-top: 15px; font-weight: bold; color: #333; line-height: 1.4; }
-    details { margin-bottom: 15px; background: #f9fafc; padding: 10px; border-radius: 4px; border: 1px solid #e1e4e8; }
-    summary { cursor: pointer; font-weight: bold; font-size: 13px; color: #0079bf; }
+    .hint { background: #e4f0f6; padding: 12px; border-radius: 4px; font-size: 13px; color: #172b4d; line-height: 1.6; margin-bottom: 15px; }
   </style>
 </head>
 <body>
   <div class="box">
     <h2>Trello Bilder herunterladen</h2>
 
-    <details id="authBox" open>
-      <summary>Zugangsdaten (werden nur in deinem Browser gespeichert)</summary>
-      <label>Trello API-Key:</label>
-      <input type="password" id="apiKey" placeholder="Deinen API-Key einfügen" onchange="saveKeys()" />
-      <label>Trello Token:</label>
-      <input type="password" id="apiToken" placeholder="Deinen Token einfügen" onchange="saveKeys()" />
-    </details>
-
-    <label>1. Link zur Trello-Karte einfügen:</label>
-    <input type="text" id="cardUrl" placeholder="https://trello.com..." />
-    <button onclick="openTrelloData()">Schritt 1: Kartendaten in neuem Tab öffnen</button>
-
-    <div id="step2Box" class="step2">
-      <label>2. Im neuen Tab alles markieren (Strg+A), kopieren (Strg+C) und hier einfügen:</label>
-      <textarea id="jsonInput" rows="4" placeholder='Hier den kopierten Text ([{"id":...}]) einfügen'></textarea>
-      <button onclick="startDownloads()" style="background: #5aac44;">Schritt 2: Alle Bilder jetzt herunterladen</button>
+    <div class="hint">
+      <b>So lädst du alle Bilder in 3 Schritten:</b><br>
+      1. Öffne deine Trello-Karte im Browser.<br>
+      2. Klicke oben in die Adressleiste, tippe <b>.json</b> ganz ans Ende des Links und drücke <b>Enter</b>.<br>
+      3. Drücke auf der Text-Seite <b>Strg + A</b>, dann <b>Strg + C</b> und füge alles hier unten ein:
     </div>
+
+    <label>Kopierten Text aus Trello hier einfügen:</label>
+    <textarea id="jsonInput" rows="5" placeholder='Hier mit Strg + V einfügen...'></textarea>
+    <button onclick="startDownloads()">Alle Bilder jetzt herunterladen</button>
 
     <div id="status"></div>
   </div>
 
   <script>
-    var currentCardId = "";
-
-    window.onload = function() {
-      var savedKey = localStorage.getItem('trello_api_key');
-      var savedTok = localStorage.getItem('trello_api_token');
-      if (savedKey) document.getElementById('apiKey').value = savedKey;
-      if (savedTok) document.getElementById('apiToken').value = savedTok;
-      if (savedKey && savedTok) {
-        document.getElementById('authBox').removeAttribute('open');
-      }
-    };
-
-    function saveKeys() {
-      localStorage.setItem('trello_api_key', document.getElementById('apiKey').value.trim());
-      localStorage.setItem('trello_api_token', document.getElementById('apiToken').value.trim());
-    }
-
-    function openTrelloData() {
-      saveKeys();
-      var API_KEY = document.getElementById('apiKey').value.trim();
-      var TOKEN = document.getElementById('apiToken').value.trim();
-      var status = document.getElementById('status');
-      var urlInput = document.getElementById('cardUrl').value.trim();
-      var match = urlInput.match(/\/c\/([a-zA-Z0-9]+)/);
-
-      if (!API_KEY || !TOKEN) {
-        status.style.color = "red";
-        status.innerText = "Bitte oben zuerst deinen API-Key und Token eintragen!";
-        document.getElementById('authBox').setAttribute('open', '');
-        return;
-      }
-
-      if (!match) {
-        status.style.color = "red";
-        status.innerText = "Bitte einen gültigen Trello-Karten-Link einfügen!";
-        return;
-      }
-
-      currentCardId = match.at(1);
-      var apiUrl = "https://trello.com" + currentCardId + "/attachments?key=" + API_KEY + "&token=" + TOKEN;
-      
-      window.open(apiUrl, "_blank");
-      document.getElementById('step2Box').style.display = "block";
-      status.style.color = "#0079bf";
-      status.innerText = "Neuer Tab geöffnet! Drücke dort Strg+A, dann Strg+C und füge den Text oben in Feld 2 ein.";
-    }
-
     async function startDownloads() {
-      var API_KEY = document.getElementById('apiKey').value.trim();
-      var TOKEN = document.getElementById('apiToken').value.trim();
       var status = document.getElementById('status');
       var rawText = document.getElementById('jsonInput').value.trim();
 
       if (!rawText) {
         status.style.color = "red";
-        status.innerText = "Bitte zuerst den kopierten Text aus dem anderen Tab einfügen!";
+        status.innerText = "Bitte zuerst den kopierten Text aus Trello einfügen!";
         return;
       }
 
       try {
-        var attachments = JSON.parse(rawText);
+        var data = JSON.parse(rawText);
+        var attachments = data.attachments || [];
         var images = attachments.filter(function(a) {
           return /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(a.name) || (a.mimeType && a.mimeType.indexOf('image/') === 0);
         });
@@ -117,11 +60,11 @@
           status.style.color = "#0079bf";
           status.innerText = "Lade Bild " + (i + 1) + " von " + images.length + "...";
           var img = images.at(i);
-          var dlUrl = "https://trello.com" + currentCardId + "/attachments/" + img.id + "/download/" + encodeURIComponent(img.name) + "?key=" + API_KEY + "&token=" + TOKEN;
           
           var link = document.createElement("a");
-          link.href = dlUrl;
+          link.href = img.url;
           link.download = img.name;
+          link.target = "_blank";
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
@@ -130,10 +73,10 @@
         }
 
         status.style.color = "green";
-        status.innerText = "Geschafft! " + images.length + " Bilder wurden heruntergeladen.";
+        status.innerText = "Fertig! " + images.length + " Bilder wurden heruntergeladen.";
       } catch (e) {
         status.style.color = "red";
-        status.innerText = "Der eingefügte Text war ungültig. Bitte im Trello-Tab wirklich alles mit Strg+A markieren und kopieren.";
+        status.innerText = "Ungültiger Text. Bitte auf der .json-Seite wirklich alles mit Strg + A markieren und kopieren.";
       }
     }
   </script>
