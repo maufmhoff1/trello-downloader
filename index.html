@@ -6,12 +6,12 @@
   <style>
     body { font-family: sans-serif; max-width: 520px; margin: 40px auto; padding: 20px; background: #f4f5f7; }
     .box { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-    label { font-size: 13px; font-weight: bold; color: #444; display: block; margin-top: 12px; }
-    textarea { width: 100%; padding: 10px; margin: 5px 0 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-family: inherit; }
-    button { width: 100%; padding: 12px; margin-top: 8px; background: #5aac44; color: white; border: none; border-radius: 4px; font-size: 15px; font-weight: bold; cursor: pointer; }
+    label { font-size: 13px; font-weight: bold; color: #444; display: block; margin-top: 14px; }
+    input[type="text"], input[type="file"] { width: 100%; padding: 10px; margin: 6px 0 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; background: #fff; }
+    button { width: 100%; padding: 12px; margin-top: 10px; background: #5aac44; color: white; border: none; border-radius: 4px; font-size: 15px; font-weight: bold; cursor: pointer; }
     button:hover { background: #49852e; }
     #status { margin-top: 15px; font-weight: bold; color: #333; line-height: 1.4; }
-    .hint { background: #e4f0f6; padding: 12px; border-radius: 4px; font-size: 13px; color: #172b4d; line-height: 1.6; margin-bottom: 15px; }
+    .hint { background: #e4f0f6; padding: 12px; border-radius: 4px; font-size: 13px; color: #172b4d; line-height: 1.5; margin-bottom: 15px; }
   </style>
 </head>
 <body>
@@ -19,15 +19,17 @@
     <h2>Trello Bilder herunterladen</h2>
 
     <div class="hint">
-      <b>So lädst du alle Bilder in 3 Schritten:</b><br>
-      1. Öffne deine Trello-Karte im Browser.<br>
-      2. Klicke oben in die Adressleiste, tippe <b>.json</b> ganz ans Ende des Links und drücke <b>Enter</b>.<br>
-      3. Drücke auf der Text-Seite <b>Strg + A</b>, dann <b>Strg + C</b> und füge alles hier unten ein:
+      <b>So bekommst du die Board-Datei (1x pro Board):</b><br>
+      Öffne dein Trello-Board &rarr; rechts oben <b>&hellip; (Menü)</b> &rarr; <b>Drucken und exportieren</b> &rarr; <b>Als JSON exportieren</b>.
     </div>
 
-    <label>Kopierten Text aus Trello hier einfügen:</label>
-    <textarea id="jsonInput" rows="5" placeholder='Hier mit Strg + V einfügen...'></textarea>
-    <button onclick="startDownloads()">Alle Bilder jetzt herunterladen</button>
+    <label>1. Heruntergeladene Board-JSON-Datei auswählen:</label>
+    <input type="file" id="jsonFile" accept=".json" />
+
+    <label>2. Link der gewünschten Trello-Karte einfügen:</label>
+    <input type="text" id="cardUrl" placeholder="https://trello.com..." />
+
+    <button onclick="startDownloads()">Alle Bilder dieser Karte herunterladen</button>
 
     <div id="status"></div>
   </div>
@@ -35,49 +37,75 @@
   <script>
     async function startDownloads() {
       var status = document.getElementById('status');
-      var rawText = document.getElementById('jsonInput').value.trim();
+      var fileInput = document.getElementById('jsonFile');
+      var urlInput = document.getElementById('cardUrl').value.trim();
+      var match = urlInput.match(/\/c\/([a-zA-Z0-9]+)/);
 
-      if (!rawText) {
+      if (!fileInput.files || fileInput.files.length === 0) {
         status.style.color = "red";
-        status.innerText = "Bitte zuerst den kopierten Text aus Trello einfügen!";
+        status.innerText = "Bitte wähle oben zuerst deine exportierte JSON-Datei aus!";
         return;
       }
 
-      try {
-        var data = JSON.parse(rawText);
-        var attachments = data.attachments || [];
-        var images = attachments.filter(function(a) {
-          return /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(a.name) || (a.mimeType && a.mimeType.indexOf('image/') === 0);
-        });
-
-        if (images.length === 0) {
-          status.style.color = "orange";
-          status.innerText = "Keine Bilder in dieser Karte gefunden.";
-          return;
-        }
-
-        for (var i = 0; i < images.length; i++) {
-          status.style.color = "#0079bf";
-          status.innerText = "Lade Bild " + (i + 1) + " von " + images.length + "...";
-          var img = images.at(i);
-          
-          var link = document.createElement("a");
-          link.href = img.url;
-          link.download = img.name;
-          link.target = "_blank";
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-
-          await new Promise(function(r) { setTimeout(r, 700); });
-        }
-
-        status.style.color = "green";
-        status.innerText = "Fertig! " + images.length + " Bilder wurden heruntergeladen.";
-      } catch (e) {
+      if (!match) {
         status.style.color = "red";
-        status.innerText = "Ungültiger Text. Bitte auf der .json-Seite wirklich alles mit Strg + A markieren und kopieren.";
+        status.innerText = "Bitte füge den Link deiner Trello-Karte ein!";
+        return;
       }
+
+      var shortLink = match.at(1);
+      var reader = new FileReader();
+
+      reader.onload = async function(e) {
+        try {
+          var boardData = JSON.parse(e.target.result);
+          var cards = boardData.cards || [];
+          var targetCard = cards.find(function(c) {
+            return c.shortLink === shortLink || (c.url && c.url.indexOf('/c/' + shortLink) !== -1);
+          });
+
+          if (!targetCard) {
+            status.style.color = "red";
+            status.innerText = "Karte (" + shortLink + ") wurde in dieser JSON-Datei nicht gefunden. Ist es das richtige Board?";
+            return;
+          }
+
+          var attachments = targetCard.attachments || [];
+          var images = attachments.filter(function(a) {
+            return /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(a.name) || (a.mimeType && a.mimeType.indexOf('image/') === 0);
+          });
+
+          if (images.length === 0) {
+            status.style.color = "orange";
+            status.innerText = "Keine Bilder in dieser Karte gefunden.";
+            return;
+          }
+
+          for (var i = 0; i < images.length; i++) {
+            status.style.color = "#0079bf";
+            status.innerText = "Starte Download " + (i + 1) + " von " + images.length + "...";
+            var img = images.at(i);
+
+            var link = document.createElement("a");
+            link.href = img.url;
+            link.download = img.name;
+            link.target = "_blank";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            await new Promise(function(r) { setTimeout(r, 700); });
+          }
+
+          status.style.color = "green";
+          status.innerText = "Fertig! " + images.length + " Bilder aus '" + targetCard.name + "' wurden heruntergeladen.";
+        } catch (err) {
+          status.style.color = "red";
+          status.innerText = "Fehler beim Lesen der Datei: " + err.message;
+        }
+      };
+
+      reader.readAsText(fileInput.files.item(0));
     }
   </script>
 </body>
