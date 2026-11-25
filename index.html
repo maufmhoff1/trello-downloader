@@ -10,7 +10,7 @@
     input { width: 100%; padding: 10px; margin: 5px 0 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
     button { width: 100%; padding: 12px; margin-top: 10px; background: #0079bf; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; }
     button:hover { background: #026aa7; }
-    #status { margin-top: 15px; font-weight: bold; color: #333; line-height: 1.4; }
+    #status { margin-top: 15px; font-weight: bold; color: #333; line-height: 1.4; word-break: break-word; }
     details { margin-bottom: 15px; background: #f9fafc; padding: 10px; border-radius: 4px; border: 1px solid #e1e4e8; }
     summary { cursor: pointer; font-weight: bold; font-size: 13px; color: #0079bf; }
   </style>
@@ -70,13 +70,14 @@
         return;
       }
 
-      const cardId = match[1];
+      const cardId = match.at(1);
+      const apiUrl = `https://trello.com{cardId}/attachments?key=${API_KEY}&token=${TOKEN}`;
       status.style.color = "#0079bf";
-      status.innerText = "Suche Bilder auf der Karte...";
+      status.innerText = `Prüfe Karte (${cardId})...`;
 
       try {
-        const res = await fetch(`https://trello.com{cardId}/attachments?key=${API_KEY}&token=${TOKEN}`);
-        if (!res.ok) throw new Error("Trello-Zugriff fehlgeschlagen (Status " + res.status + "). Key/Token prüfen!");
+        const res = await fetch(apiUrl);
+        if (!res.ok) throw new Error(`Trello-Status ${res.status} – bitte Key & Token prüfen!`);
         
         const attachments = await res.json();
         const images = attachments.filter(a => /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(a.name) || (a.mimeType && a.mimeType.startsWith('image/')));
@@ -89,25 +90,25 @@
 
         for (let i = 0; i < images.length; i++) {
           status.innerText = `Starte Download ${i + 1} von ${images.length}...`;
-          const img = images[i];
+          const img = images.at(i);
           const dlUrl = `https://trello.com{cardId}/attachments/${img.id}/download/${encodeURIComponent(img.name)}?key=${API_KEY}&token=${TOKEN}`;
           
           const link = document.createElement("a");
           link.href = dlUrl;
           link.download = img.name;
+          link.target = "_blank";
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
 
-          // Kurze Pause, damit der Browser alle Downloads sauber annimmt
-          await new Promise(r => setTimeout(r, 600));
+          await new Promise(r => setTimeout(r, 700));
         }
 
         status.style.color = "green";
-        status.innerText = `Fertig! ${images.length} Bilder wurden an deinen Browser übergeben. (Falls nur 1 Bild kam, bitte oben in der Browserleiste "Mehrere Dateien herunterladen" zulassen).`;
+        status.innerText = `Fertig! ${images.length} Bilder wurden heruntergeladen.`;
       } catch (err) {
         status.style.color = "red";
-        status.innerText = "Fehler: " + err.message;
+        status.innerHTML = `Fehler bei Karte <b>${cardId}</b>: ${err.message}<br><br><a href="${apiUrl}" target="_blank">👉 Klicke hier, um die Trello-Antwort direkt im Browser zu prüfen</a>`;
       }
     }
   </script>
